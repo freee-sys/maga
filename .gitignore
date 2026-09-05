@@ -1,0 +1,10 @@
+# Go
+*.exe
+*.test
+
+# Frontend build artifacts / deps (rebuild with: cd web && npm install && npm run build)
+web/node_modules/
+web/dist/
+
+# Local tooling, not part of the project
+.claude/

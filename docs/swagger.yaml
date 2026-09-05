@@ -1,0 +1,755 @@
+basePath: /api/v1
+definitions:
+  dsl.Arg:
+    properties:
+      i:
+        type: integer
+      m:
+        additionalProperties:
+          type: string
+        type: object
+      s:
+        type: string
+    type: object
+  dsl.Op:
+    properties:
+      args:
+        items:
+          $ref: '#/definitions/dsl.Arg'
+        type: array
+      name:
+        type: string
+    type: object
+  dto.AssignmentHistoryResponse:
+    properties:
+      cluster_id:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: string
+      matched_pattern:
+        type: string
+      raw_captures:
+        additionalProperties:
+          type: string
+        type: object
+      rendered_cluster_key:
+        type: string
+      rule_id:
+        type: string
+      transformed_captures:
+        additionalProperties:
+          type: string
+        type: object
+      trigger_source:
+        type: string
+      warnings:
+        type: string
+    type: object
+  dto.BulkRedistributeRequest:
+    properties:
+      element_ids:
+        items:
+          type: string
+        type: array
+    type: object
+  dto.ClusterRenameRequest:
+    properties:
+      description:
+        type: string
+      display_name:
+        type: string
+    type: object
+  dto.ClusterResponse:
+    properties:
+      description:
+        type: string
+      display_name:
+        type: string
+      id:
+        type: string
+      lookup_key:
+        type: string
+      member_count:
+        type: integer
+    type: object
+  dto.DiscoveryJobRequest:
+    properties:
+      snmp_community:
+        type: string
+      snmp_version:
+        type: string
+      targets:
+        type: string
+    type: object
+  dto.DiscoveryJobResponse:
+    properties:
+      completed_at:
+        type: string
+      created_at:
+        type: string
+      error_message:
+        type: string
+      id:
+        type: string
+      input_spec:
+        type: string
+      snmp_version:
+        type: string
+      started_at:
+        type: string
+      status:
+        type: string
+      total_targets:
+        type: integer
+    type: object
+  dto.DiscoveryJobResultResponse:
+    properties:
+      element_id:
+        type: string
+      error_message:
+        type: string
+      ip_address:
+        type: string
+      responded_at:
+        type: string
+      status:
+        type: string
+      sys_descr:
+        type: string
+      sys_name:
+        type: string
+      sys_object_id:
+        type: string
+    type: object
+  dto.ElementResponse:
+    properties:
+      assignment_status:
+        type: string
+      cluster_id:
+        type: string
+      first_seen_at:
+        type: string
+      id:
+        type: string
+      ip_address:
+        type: string
+      last_rule_id:
+        type: string
+      last_seen_at:
+        type: string
+      sys_name:
+        type: string
+    type: object
+  dto.ReorderRequest:
+    properties:
+      rule_ids:
+        items:
+          type: string
+        type: array
+    type: object
+  dto.RuleRequest:
+    properties:
+      capture_transforms:
+        additionalProperties:
+          items:
+            $ref: '#/definitions/dsl.Op'
+          type: array
+        type: object
+      cluster_key_template:
+        type: string
+      description:
+        type: string
+      is_enabled:
+        type: boolean
+      name:
+        type: string
+      pattern:
+        type: string
+      priority:
+        type: integer
+    type: object
+  dto.RuleResponse:
+    properties:
+      capture_transforms:
+        additionalProperties:
+          items:
+            $ref: '#/definitions/dsl.Op'
+          type: array
+        type: object
+      cluster_key_template:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      is_enabled:
+        type: boolean
+      name:
+        type: string
+      pattern:
+        type: string
+      priority:
+        type: integer
+    type: object
+  dto.RuleTestRequest:
+    properties:
+      capture_transforms:
+        additionalProperties:
+          items:
+            $ref: '#/definitions/dsl.Op'
+          type: array
+        type: object
+      cluster_key_template:
+        type: string
+      hostname:
+        type: string
+      pattern:
+        type: string
+    type: object
+  dto.RuleTestResponse:
+    properties:
+      matched:
+        type: boolean
+      raw_captures:
+        additionalProperties:
+          type: string
+        type: object
+      rendered_cluster_key:
+        type: string
+      transformed_captures:
+        additionalProperties:
+          type: string
+        type: object
+      warnings:
+        items:
+          type: string
+        type: array
+      would_create_new_cluster:
+        type: boolean
+    type: object
+info:
+  contact: {}
+  description: SNMP discovery + rule-based virtual cluster assignment for network
+    devices (Phase 1).
+  title: Netcluster API
+  version: "1.0"
+paths:
+  /clusters:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dto.ClusterResponse'
+            type: array
+      summary: List clusters with member counts
+      tags:
+      - clusters
+  /clusters/{id}:
+    delete:
+      parameters:
+      - description: Cluster ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+        "409":
+          description: cluster still has member elements
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Delete an empty cluster
+      tags:
+      - clusters
+    get:
+      parameters:
+      - description: Cluster ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.ClusterResponse'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get a cluster by ID
+      tags:
+      - clusters
+    patch:
+      consumes:
+      - application/json
+      description: Renaming never touches lookup_key, so the rule engine keeps re-finding
+        this cluster on future matches.
+      parameters:
+      - description: Cluster ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: New display name/description
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ClusterRenameRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.ClusterResponse'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Rename a cluster's display name/description
+      tags:
+      - clusters
+  /discovery/jobs:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dto.DiscoveryJobResponse'
+            type: array
+      summary: List discovery jobs
+      tags:
+      - discovery
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: IP pool / CIDR / range plus SNMP settings
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.DiscoveryJobRequest'
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            $ref: '#/definitions/dto.DiscoveryJobResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Start an async SNMP discovery scan
+      tags:
+      - discovery
+  /discovery/jobs/{jobId}:
+    get:
+      parameters:
+      - description: Job ID
+        in: path
+        name: jobId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.DiscoveryJobResponse'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get a discovery job's status
+      tags:
+      - discovery
+  /discovery/jobs/{jobId}/cancel:
+    post:
+      parameters:
+      - description: Job ID
+        in: path
+        name: jobId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Best-effort cancel a running discovery job
+      tags:
+      - discovery
+  /discovery/jobs/{jobId}/results:
+    get:
+      parameters:
+      - description: Job ID
+        in: path
+        name: jobId
+        required: true
+        type: string
+      - description: Max rows to return (default 100, max 1000)
+        in: query
+        name: limit
+        type: integer
+      - description: Rows to skip
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dto.DiscoveryJobResultResponse'
+            type: array
+      summary: List a discovery job's per-IP results
+      tags:
+      - discovery
+  /elements:
+    get:
+      parameters:
+      - description: Filter by cluster ID
+        in: query
+        name: cluster_id
+        type: string
+      - description: Filter by assignment status (unassigned|assigned)
+        in: query
+        name: assignment_status
+        type: string
+      - description: Free-text search
+        in: query
+        name: q
+        type: string
+      - description: Max rows to return (default 100, max 1000)
+        in: query
+        name: limit
+        type: integer
+      - description: Rows to skip
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dto.ElementResponse'
+            type: array
+      summary: List network elements
+      tags:
+      - elements
+  /elements/{id}:
+    delete:
+      parameters:
+      - description: Element ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Soft-delete a network element
+      tags:
+      - elements
+    get:
+      parameters:
+      - description: Element ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.ElementResponse'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get a network element by ID
+      tags:
+      - elements
+  /elements/{id}/history:
+    get:
+      parameters:
+      - description: Element ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dto.AssignmentHistoryResponse'
+            type: array
+      summary: Get an element's assignment history timeline
+      tags:
+      - elements
+  /elements/{id}/redistribute:
+    post:
+      parameters:
+      - description: Element ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Re-run the rule engine for one element
+      tags:
+      - elements
+  /elements/redistribute:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Optional element_ids to scope to
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.BulkRedistributeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Re-run the rule engine for a set of elements (or all, if none given)
+      tags:
+      - elements
+  /rules:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/dto.RuleResponse'
+            type: array
+      summary: List rules ordered by priority
+      tags:
+      - rules
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Rule definition
+        in: body
+        name: rule
+        required: true
+        schema:
+          $ref: '#/definitions/dto.RuleRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/dto.RuleResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Create a rule
+      tags:
+      - rules
+  /rules/{id}:
+    delete:
+      parameters:
+      - description: Rule ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Delete a rule
+      tags:
+      - rules
+    get:
+      parameters:
+      - description: Rule ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.RuleResponse'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get a rule by ID
+      tags:
+      - rules
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Rule ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Rule definition
+        in: body
+        name: rule
+        required: true
+        schema:
+          $ref: '#/definitions/dto.RuleRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.RuleResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Update a rule
+      tags:
+      - rules
+  /rules/reorder:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Ordered rule IDs
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ReorderRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Reorder rule priorities
+      tags:
+      - rules
+  /rules/test:
+    post:
+      consumes:
+      - application/json
+      description: 'Evaluates a candidate rule (not necessarily persisted) against
+        a sample hostname and reports what would happen, without writing anything:
+        no element, no cluster, no history row.'
+      parameters:
+      - description: Candidate rule + sample hostname
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/dto.RuleTestRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/dto.RuleTestResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Dry-run a candidate rule against a sample hostname
+      tags:
+      - rules
+swagger: "2.0"
